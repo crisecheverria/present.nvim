@@ -1,6 +1,6 @@
 # `present.nvim`
 
-Hey, this is a plugin for presenting markfdown files!. Build by [Teej](https://github.com/tjdevries) on Advent of Neovim 2024.
+Hey, this is a plugin for presenting markdown files!. Built by [Teej](https://github.com/tjdevries) on Advent of Neovim 2024.
 
 # Installation
 
@@ -30,9 +30,11 @@ This is the content of the slide
 This is more content
 ```
 
+Which results to:
+
 ```lua
 slides = {
-    { title = "# This is the first slide", body = { "This is the content" } },
+    { title = "# This is the first slide", body = { "This is the content of the slide" } },
     { title = "# A second slide", body = { "This is more content" } },
 },
 
