@@ -9,10 +9,11 @@ Hey, this is a plugin for presenting markdown files!. Built by [Teej](https://gi
 The simplest way to install this plugin is using Neovim's built-in package manager:
 
 ```lua
-vim.pack.add({ 'https://gihub.com/crisecheverria/present.nvim' })
-```
+-- Install the plugin
+vim.pack.add('https://github.com/crisecheverria/present.nvim')
 
-The plugin will automatically register the `:PresentStart` command when loaded.
+-- The plugin will automatically load and register the :PresentStart command
+```
 
 ## Using a Plugin Manager
 
