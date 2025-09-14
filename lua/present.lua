@@ -59,9 +59,15 @@ local create_window_configurations = function()
 	local width = vim.o.columns
 	local height = vim.o.lines
 
-	local header_height = 1 + 2 -- 1 + border
-	local footer_height = 1 -- 1, no border
-	local body_height = height - header_height - footer_height - 2 - 1 -- for our own border
+	local header_height = 3 -- header + border
+	local footer_height = 1 -- footer, no border
+	local body_height = height - header_height - footer_height - 2 -- spacing
+
+	-- Add some margin for better presentation
+	local margin_horizontal = math.floor(width * 0.1) -- 10% margin
+	local margin_vertical = 2
+	local content_width = width - (margin_horizontal * 2)
+	local content_height = body_height - (margin_vertical * 2)
 
 	return {
 		background = {
@@ -69,6 +75,7 @@ local create_window_configurations = function()
 			width = width,
 			height = height,
 			style = "minimal",
+			border = "none",
 			col = 0,
 			row = 0,
 			zindex = 1,
@@ -85,12 +92,13 @@ local create_window_configurations = function()
 		},
 		body = {
 			relative = "editor",
-			width = width - 8,
-			height = body_height,
+			width = content_width,
+			height = content_height,
 			style = "minimal",
-			border = { " ", " ", " ", " ", " ", " ", " ", " " },
-			col = 8,
-			row = 4,
+			border = "none",
+			col = margin_horizontal,
+			row = header_height + margin_vertical,
+			zindex = 2,
 		},
 		footer = {
 			relative = "editor",
@@ -137,8 +145,22 @@ M.start_presentation = function(opts)
 	state.floats.footer = create_floating_window(windows.footer)
 	state.floats.body = create_floating_window(windows.body, true)
 
-	foreach_float(function(_, float)
-		vim.bo[float.buf].filetype = "markdown"
+	foreach_float(function(name, float)
+		-- Only set markdown filetype for content windows, not background
+		if name ~= "background" then
+			vim.bo[float.buf].filetype = "markdown"
+		end
+
+		-- Remove any visual artifacts for the body window
+		if name == "body" then
+			vim.wo[float.win].number = false
+			vim.wo[float.win].relativenumber = false
+			vim.wo[float.win].cursorline = false
+			vim.wo[float.win].cursorcolumn = false
+			vim.wo[float.win].colorcolumn = ""
+			vim.wo[float.win].signcolumn = "no"
+			vim.wo[float.win].foldcolumn = "0"
+		end
 	end)
 
 	local set_slide_content = function(idx)

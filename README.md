@@ -4,14 +4,25 @@ Hey, this is a plugin for presenting markdown files!. Built by [Teej](https://gi
 
 # Installation
 
+## Using vim.pack.add() (Neovim v0.10+)
+
+The simplest way to install this plugin is using Neovim's built-in package manager:
+
+```lua
+vim.pack.add({ 'https://gihub.com/crisecheverria/present.nvim' })
+```
+
+The plugin will automatically register the `:PresentStart` command when loaded.
+
+## Using a Plugin Manager
+
 ```lua
 return {
   'crisecheverria/present.nvim',
   config = function()
-    -- Register the PresentStart command
-    vim.api.nvim_create_user_command('PresentStart', function()
-      require('present').start_presentation {}
-    end, {})
+    -- No configuration needed - PresentStart command is automatically registered
+    -- Optional: You can call setup if you want to customize anything in the future
+    require('present').setup()
   end,
 }
 ```
@@ -40,6 +51,19 @@ slides = {
 
 ```
 
-Execute the presentation with command `:PresentStart`
+## Starting a Presentation
 
-Use `n` and `p` to navigate markdown files
+1. Open a markdown file in Neovim
+2. Execute the command `:PresentStart`
+3. Navigate through slides using:
+   - `n` - Next slide
+   - `p` - Previous slide
+   - `q` - Quit presentation
+
+## Features
+
+- **Clean, minimal interface**: Borderless slide content with only a title border
+- **Responsive design**: Automatically adjusts to terminal size with proper margins
+- **Markdown rendering**: Full markdown syntax highlighting for slide content
+- **Simple navigation**: Intuitive keyboard shortcuts for presentation control
+- **Auto-loading**: No configuration required - just install and use
