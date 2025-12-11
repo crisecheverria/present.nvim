@@ -160,6 +160,9 @@ M.start_presentation = function(opts)
 			vim.wo[float.win].colorcolumn = ""
 			vim.wo[float.win].signcolumn = "no"
 			vim.wo[float.win].foldcolumn = "0"
+
+			-- Enable treesitter syntax highlighting for the body buffer using native Neovim API
+			vim.treesitter.start(float.buf, "markdown")
 		end
 	end)
 
@@ -205,7 +208,7 @@ M.start_presentation = function(opts)
 	vim.api.nvim_create_autocmd("BufLeave", {
 		buffer = state.floats.body.buf,
 		callback = function()
-			-- Resetn the values when we are done with the presentation
+			-- Reset the values when we are done with the presentation
 			for option, config in pairs(restore) do
 				vim.opt[option] = config.original
 			end
