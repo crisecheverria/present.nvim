@@ -95,6 +95,7 @@ slides = {
 - **Responsive design**: Automatically adjusts to terminal size with proper margins
 - **Markdown rendering**: Full markdown syntax highlighting for slide content
 - **Image support**: Renders `![alt](path)` images inline in slides (see below)
+- **Footer/watermark image**: An optional logo shown centered at the bottom of every slide (see below)
 - **Simple navigation**: Intuitive keyboard shortcuts for presentation control
 - **Auto-loading**: No configuration required - just install and use
 
@@ -120,3 +121,24 @@ Requirements for images to actually display:
 - `require('image').setup()` called somewhere in your config
 
 If image.nvim isn't installed, images are simply ignored (skipped, along with the surrounding markdown text remaining as plain text) and everything else works as before.
+
+## Footer image (watermark/logo)
+
+You can configure a single image to be shown centered at the bottom of every
+slide throughout the whole presentation (a "footprint" logo), instead of
+embedding an image per slide:
+
+```lua
+require('present').setup({
+  footer_image = {
+    path = "~/.config/nvim/present-logo.png", -- required
+    width = 24,  -- optional, columns (default: 24)
+    height = 8,  -- optional, rows (default: 8)
+  },
+})
+```
+
+The slide body area automatically shrinks to leave room above it, so slide
+content never overlaps the watermark. This has the same [image.nvim](https://github.com/3rd/image.nvim)
+requirements as inline slide images above; if image.nvim isn't installed or
+set up, the footer image is simply skipped.

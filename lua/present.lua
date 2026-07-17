@@ -11,8 +11,28 @@ local function create_floating_window(config, enter)
 	return { buf = buf, win = win }
 end
 
-M.setup = function()
-	--nothing
+---@class present.FooterImageConfig
+---@field path string: Path to the image (supports `~`)
+---@field width? integer: Display width in columns (default 24)
+---@field height? integer: Display height in rows (default 8)
+
+local default_config = {
+	---@type present.FooterImageConfig|nil
+	footer_image = nil,
+}
+
+local state = {
+	parsed = {},
+	current_slide = 1,
+	floats = {},
+	slide_images = {},
+	footer_image_render = nil,
+	config = vim.deepcopy(default_config),
+}
+
+M.setup = function(opts)
+	opts = opts or {}
+	state.config = vim.tbl_deep_extend("force", vim.deepcopy(default_config), opts)
 end
 
 ---@class present.Slides
@@ -59,8 +79,14 @@ local create_window_configurations = function()
 	local width = vim.o.columns
 	local height = vim.o.lines
 
+	local footer_image_cfg = state.config.footer_image
+	local footer_image_width = footer_image_cfg and (footer_image_cfg.width or 24) or 0
+	local footer_image_height = footer_image_cfg and (footer_image_cfg.height or 8) or 0
+	-- Reserve space above the footer text so slide content never overlaps the watermark
+	local footer_image_reserved = footer_image_cfg and (footer_image_height + 1) or 0
+
 	local header_height = 3 -- header + border
-	local footer_height = 1 -- footer, no border
+	local footer_height = 1 + footer_image_reserved -- footer text + reserved space for footer image
 	local body_height = height - header_height - footer_height - 2 -- spacing
 
 	-- Add some margin for better presentation
@@ -109,6 +135,16 @@ local create_window_configurations = function()
 			row = height - 1,
 			zindex = 3,
 		},
+		footer_image = footer_image_cfg and {
+			relative = "editor",
+			width = footer_image_width,
+			height = footer_image_height,
+			style = "minimal",
+			border = "none",
+			col = math.max(math.floor((width - footer_image_width) / 2), 0),
+			row = math.max(height - footer_image_height - 2, 0),
+			zindex = 4,
+		} or nil,
 	}
 end
 
@@ -143,14 +179,18 @@ local resolve_image_path = function(path, source_dir)
 	return vim.fn.fnamemodify(source_dir .. "/" .. path, ":p")
 end
 
-local state = {
-	parsed = {},
-	current_slide = 1,
-	floats = {},
-	slide_images = {},
-}
-
 local warned_missing_image_setup = false
+local warned_missing_footer_image = false
+
+--- Resolves the configured footer/watermark image path (supports `~`, relative to cwd)
+---@param path string
+---@return string|nil
+local resolve_footer_image_path = function(path)
+	if not path then
+		return nil
+	end
+	return vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+end
 
 local clear_slide_images = function()
 	for _, img in ipairs(state.slide_images) do
@@ -193,6 +233,56 @@ local render_slide_images = function(slide)
 	end
 end
 
+--- Renders (or re-renders) the persistent footer/watermark image, if configured.
+--- Unlike slide images, this is rendered once and stays up across every slide.
+local render_footer_image = function()
+	if state.footer_image_render then
+		pcall(state.footer_image_render.clear, state.footer_image_render)
+		state.footer_image_render = nil
+	end
+
+	local cfg = state.config.footer_image
+	if not cfg or not state.floats.footer_image then
+		return
+	end
+
+	local ok, image_api = pcall(require, "image")
+	if not ok then
+		return
+	end
+
+	local path = resolve_footer_image_path(cfg.path)
+	if not path or vim.fn.filereadable(path) ~= 1 then
+		if not warned_missing_footer_image then
+			warned_missing_footer_image = true
+			vim.notify("present.nvim: footer_image path not readable: " .. tostring(cfg.path), vim.log.levels.WARN)
+		end
+		return
+	end
+
+	local render_ok, img = pcall(image_api.from_file, path, {
+		window = state.floats.footer_image.win,
+		buffer = state.floats.footer_image.buf,
+		x = 0,
+		y = 0,
+		width = cfg.width or 24,
+		height = cfg.height or 8,
+		with_virtual_padding = true,
+	})
+
+	if render_ok and img then
+		pcall(img.render, img)
+		state.footer_image_render = img
+	elseif not warned_missing_image_setup and tostring(img):find("not setup", 1, true) then
+		warned_missing_image_setup = true
+		vim.notify(
+			"present.nvim: image.nvim is installed but not set up. "
+				.. "Call require('image').setup() in your config to enable image rendering in slides.",
+			vim.log.levels.WARN
+		)
+	end
+end
+
 local foreach_float = function(cb)
 	for name, float in pairs(state.floats) do
 		cb(name, float)
@@ -219,11 +309,14 @@ M.start_presentation = function(opts)
 	state.floats.background = create_floating_window(windows.background)
 	state.floats.header = create_floating_window(windows.header)
 	state.floats.footer = create_floating_window(windows.footer)
+	if windows.footer_image then
+		state.floats.footer_image = create_floating_window(windows.footer_image)
+	end
 	state.floats.body = create_floating_window(windows.body, true)
 
 	foreach_float(function(name, float)
-		-- Only set markdown filetype for content windows, not background
-		if name ~= "background" then
+		-- Only set markdown filetype for content windows, not background/footer_image
+		if name ~= "background" and name ~= "footer_image" then
 			vim.bo[float.buf].filetype = "markdown"
 		end
 
@@ -294,9 +387,15 @@ M.start_presentation = function(opts)
 
 			clear_slide_images()
 
+			if state.footer_image_render then
+				pcall(state.footer_image_render.clear, state.footer_image_render)
+				state.footer_image_render = nil
+			end
+
 			foreach_float(function(_, float)
 				pcall(vim.api.nvim_win_close, float.win, true)
 			end)
+			state.floats.footer_image = nil
 		end,
 	})
 
@@ -314,10 +413,12 @@ M.start_presentation = function(opts)
 
 			-- Re-calculates current slide contents
 			set_slide_content(state.current_slide)
+			render_footer_image()
 		end,
 	})
 
 	set_slide_content(state.current_slide)
+	render_footer_image()
 end
 
 -- M.start_presentation({ bufnr = 213 })
