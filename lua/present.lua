@@ -112,11 +112,86 @@ local create_window_configurations = function()
 	}
 end
 
+--- Finds markdown image syntax (`![alt](path)`) in a slide body
+---@param body string[]: The lines of a slide's body
+---@return { row: integer, col: integer, path: string }[]
+local find_images_in_body = function(body)
+	local images = {}
+	for i, line in ipairs(body) do
+		local start_idx, _, path = line:find("!%[.-%]%((.-)%)")
+		if path then
+			table.insert(images, { row = i - 1, col = start_idx - 1, path = path })
+		end
+	end
+	return images
+end
+
+--- Resolves an image path from markdown relative to the presentation file
+---@param path string: The path as written in the markdown
+---@param source_dir string: The directory of the presentation file
+---@return string|nil: The absolute path, or nil if unsupported (e.g. remote urls)
+local resolve_image_path = function(path, source_dir)
+	if path:match("^%a+://") then
+		return nil
+	end
+	if path:sub(1, 1) == "/" then
+		return path
+	end
+	if path:sub(1, 1) == "~" then
+		return vim.fn.fnamemodify(path, ":p")
+	end
+	return vim.fn.fnamemodify(source_dir .. "/" .. path, ":p")
+end
+
 local state = {
 	parsed = {},
 	current_slide = 1,
 	floats = {},
+	slide_images = {},
 }
+
+local warned_missing_image_setup = false
+
+local clear_slide_images = function()
+	for _, img in ipairs(state.slide_images) do
+		pcall(img.clear, img)
+	end
+	state.slide_images = {}
+end
+
+--- Renders any markdown images found in a slide's body using image.nvim, if installed
+---@param slide present.Slide
+local render_slide_images = function(slide)
+	local ok, image_api = pcall(require, "image")
+	if not ok then
+		return
+	end
+
+	for _, found in ipairs(find_images_in_body(slide.body)) do
+		local path = resolve_image_path(found.path, state.source_dir)
+		if path and vim.fn.filereadable(path) == 1 then
+			local render_ok, img = pcall(image_api.from_file, path, {
+				window = state.floats.body.win,
+				buffer = state.floats.body.buf,
+				x = found.col,
+				y = found.row,
+				with_virtual_padding = true,
+			})
+
+			if render_ok and img then
+				pcall(img.render, img)
+				table.insert(state.slide_images, img)
+			elseif not warned_missing_image_setup and tostring(img):find("not setup", 1, true) then
+				warned_missing_image_setup = true
+				vim.notify(
+					"present.nvim: image.nvim is installed but not set up. "
+						.. "Call require('image').setup() in your config to enable image rendering in slides.",
+					vim.log.levels.WARN
+				)
+			end
+		end
+	end
+end
 
 local foreach_float = function(cb)
 	for name, float in pairs(state.floats) do
@@ -138,6 +213,7 @@ M.start_presentation = function(opts)
 	state.parsed = parse_slides(lines)
 	state.current_slide = 1
 	state.title = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(opts.bufnr), ":t")
+	state.source_dir = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(opts.bufnr), ":h")
 
 	local windows = create_window_configurations()
 	state.floats.background = create_floating_window(windows.background)
@@ -177,6 +253,9 @@ M.start_presentation = function(opts)
 
 		local footer = string.format("  %d / %d | %s", state.current_slide, #state.parsed.slides, state.title)
 		vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
+
+		clear_slide_images()
+		render_slide_images(slide)
 	end
 
 	present_keymap("n", "n", function()
@@ -212,6 +291,8 @@ M.start_presentation = function(opts)
 			for option, config in pairs(restore) do
 				vim.opt[option] = config.original
 			end
+
+			clear_slide_images()
 
 			foreach_float(function(_, float)
 				pcall(vim.api.nvim_win_close, float.win, true)

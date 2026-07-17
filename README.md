@@ -94,5 +94,29 @@ slides = {
 - **Clean, minimal interface**: Borderless slide content with only a title border
 - **Responsive design**: Automatically adjusts to terminal size with proper margins
 - **Markdown rendering**: Full markdown syntax highlighting for slide content
+- **Image support**: Renders `![alt](path)` images inline in slides (see below)
 - **Simple navigation**: Intuitive keyboard shortcuts for presentation control
 - **Auto-loading**: No configuration required - just install and use
+
+## Images
+
+If [image.nvim](https://github.com/3rd/image.nvim) is installed and set up (via
+`require('image').setup()`), present.nvim will render any local images referenced with
+standard markdown syntax in a slide's body:
+
+```markdown
+# A slide with an image
+
+![a diagram](./assets/diagram.png)
+```
+
+Paths are resolved relative to the presentation file. Absolute paths and `~` are
+also supported; remote URLs are not.
+
+Requirements for images to actually display:
+
+- A terminal that supports a graphics protocol image.nvim can use (e.g. Kitty, WezTerm, Ghostty)
+- If running inside tmux, tmux 3.3+ with `set -g allow-passthrough on`
+- `require('image').setup()` called somewhere in your config
+
+If image.nvim isn't installed, images are simply ignored (skipped, along with the surrounding markdown text remaining as plain text) and everything else works as before.
