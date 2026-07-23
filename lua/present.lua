@@ -298,6 +298,23 @@ end
 M.start_presentation = function(opts)
 	opts = opts or {}
 	opts.bufnr = opts.bufnr or 0
+	if opts.bufnr == 0 then
+		opts.bufnr = vim.api.nvim_get_current_buf()
+	end
+
+	-- Clear any images image.nvim's own markdown integration already rendered
+	-- against the source buffer (e.g. from viewing/editing it before starting
+	-- the presentation). Those are absolutely-positioned on the terminal and
+	-- image.nvim won't auto-clear them just because our floating windows now
+	-- cover that screen region (window_overlap_clear_enabled defaults off),
+	-- so they'd otherwise show through underneath every slide for the whole
+	-- presentation.
+	local ok_image, image_api = pcall(require, "image")
+	if ok_image then
+		for _, img in ipairs(image_api.get_images({ buffer = opts.bufnr })) do
+			pcall(img.clear, img)
+		end
+	end
 
 	local lines = vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false)
 	state.parsed = parse_slides(lines)
