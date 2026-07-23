@@ -339,6 +339,12 @@ M.start_presentation = function(opts)
 		local width = vim.o.columns
 		local slide = state.parsed.slides[idx]
 
+		-- Clear old images while the buffer still holds the content they were
+		-- rendered against, and defer the new render a tick past the clear
+		-- (image.nvim mishandles back-to-back clear+render of the same buffer:
+		-- https://github.com/3rd/image.nvim/issues/120).
+		clear_slide_images()
+
 		local padding = string.rep(" ", (width - #slide.title) / 2)
 		local title = padding .. slide.title
 		vim.api.nvim_buf_set_lines(state.floats.header.buf, 0, -1, false, { title })
@@ -347,8 +353,11 @@ M.start_presentation = function(opts)
 		local footer = string.format("  %d / %d | %s", state.current_slide, #state.parsed.slides, state.title)
 		vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
 
-		clear_slide_images()
-		render_slide_images(slide)
+		vim.schedule(function()
+			if state.current_slide == idx then
+				render_slide_images(slide)
+			end
+		end)
 	end
 
 	present_keymap("n", "n", function()
