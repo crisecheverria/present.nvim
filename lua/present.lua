@@ -315,8 +315,13 @@ M.start_presentation = function(opts)
 	state.floats.body = create_floating_window(windows.body, true)
 
 	foreach_float(function(name, float)
-		-- Only set markdown filetype for content windows, not background/footer_image
-		if name ~= "background" and name ~= "footer_image" then
+		-- Only set markdown filetype for header/footer, not background/footer_image/body.
+		-- The body buffer is deliberately kept off "markdown": image.nvim's own markdown
+		-- integration auto-renders `![alt](path)` in any markdown-filetype buffer, which
+		-- fights with present.nvim's own per-slide render/clear and produces duplicate,
+		-- stale images across slide navigation. Treesitter highlighting for the body is
+		-- attached explicitly below and doesn't need 'filetype' set to work.
+		if name ~= "background" and name ~= "footer_image" and name ~= "body" then
 			vim.bo[float.buf].filetype = "markdown"
 		end
 
